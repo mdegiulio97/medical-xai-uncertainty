@@ -1,0 +1,25 @@
+{
+  "dataset": {
+    "name": "Cheng brain tumor (figshare)",
+    "license": "CC BY 4.0",
+    "doi": "10.6084/m9.figshare.1512427",
+    "task": "glioma vs non-glioma (binario)",
+    "modality": "T1w CE (brain MRI)"
+  },
+  "deep_model": {
+    "auroc": 0.9798611111111111,
+    "f1": 0.6206896551724138,
+    "accuracy": 0.9285714285714286
+  },
+  "logistic_baseline": {
+    "auroc": 0.8590277777777778,
+    "f1": 0.5714285714285714,
+    "accuracy": 0.961038961038961
+  },
+  "ece_uncalibrated": 0.0394,
+  "ece_temperature_scaled": 0.0128,
+  "temperature": 1.243,
+  "mean_uncertainty_correct": 0.0127,
+  "mean_uncertainty_wrong": 0.0573,
+  "n_test": 154
+}

@@ -61,6 +61,31 @@ Figure in `results/`; valori rigenerabili con `scripts/evaluate.py`.
 
 > **Lettura onesta dei numeri**: il modello profondo ha **AUROC nettamente superiore** (migliore *ranking*/discriminazione), ma alla soglia fissa 0.5 accuracy/F1 sono vicine — leggermente sotto — alla baseline lineare, perché la soglia non è ottimizzata e le classi sono sbilanciate. Con sole 3 epoche è atteso; il valore distintivo qui è il **segnale di incertezza** e la **calibrazione**, non lo squeezing dell'accuracy.
 
+## Track MRI cerebrale reale (Cheng brain tumor, CC BY 4.0)
+
+La stessa metodologia (ResNet18 + Grad-CAM + incertezza MC-Dropout + calibrazione)
+è applicata, **senza modifiche al modello**, a MRI cerebrale T1w reale: dataset
+**Cheng** (figshare, CC BY 4.0), task binario **glioma vs non-glioma**.
+
+```bash
+uv run python scripts/download_tumor.py    # ~204 MB da figshare (dati gitignorati)
+uv run python scripts/evaluate_tumor.py    # ResNet18 + XAI + incertezza → results/tumor_*
+```
+
+Numeri reali da `results/tumor_metrics.json` (766 slice, test = 154 held-out):
+
+| | AUROC ↑ | F1 ↑ | Accuracy ↑ |
+|--|:--:|:--:|:--:|
+| **ResNet18 (deep)** | **0.980** | 0.621 | 0.929 |
+| Baseline logistica | 0.859 | 0.571 | 0.961 |
+
+- **Calibrazione**: ECE **0.039 → 0.013** con temperature scaling (T = 1.24).
+- **Incertezza**: **0.0127** (corrette) vs **0.0573** (errate) → **~4.5× più alta sugli errori**.
+
+Stessa lettura onesta del track chest: AUROC nettamente superiore, ma a soglia 0.5
+l'accuracy è leggermente sotto la baseline (classe glioma minoritaria, soglia non
+ottimizzata). Report con citazioni: [`report/brain_tumor_xai.md`](report/brain_tumor_xai.md).
+
 ## Note metodologiche e limiti
 
 - PneumoniaMNIST è a bassa risoluzione (immagini standardizzate): utile come benchmark riproducibile, non come modello clinico.
