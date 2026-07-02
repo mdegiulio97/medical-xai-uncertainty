@@ -92,6 +92,8 @@ ottimizzata). Report con citazioni: [`report/brain_tumor_xai.md`](report/brain_t
 - MC-Dropout stima l'incertezza *epistemica*, non quella aleatoria del dato.
 - Nessun uso clinico: scopo dimostrativo/educativo.
 
+Dettagli completi su architettura, dati, metriche, uso previsto, considerazioni etiche e limiti nella [**model card**](MODEL_CARD.md).
+
 ## Riferimenti
 
 - Gal Y., Ghahramani Z., *Dropout as a Bayesian Approximation*, ICML 2016. arXiv:1506.02142
