@@ -7,38 +7,38 @@
     "modality": "T1w CE (brain MRI)"
   },
   "deep_model": {
-    "auroc": 0.9611214473599794,
-    "f1": 0.572139303482587,
-    "accuracy": 0.7194127243066885
+    "auroc": 0.9416714783687261,
+    "f1": 0.8758620689655172,
+    "accuracy": 0.8825448613376835
   },
   "logistic_baseline": {
-    "auroc": 0.8808729496802892,
-    "f1": 0.773851590106007,
-    "accuracy": 0.7911908646003263
+    "auroc": 0.8464211629349244,
+    "f1": 0.7439446366782007,
+    "accuracy": 0.7585644371941273
   },
-  "ece_uncalibrated": 0.2369,
-  "ece_temperature_scaled": 0.07,
-  "temperature": 7.542,
-  "mean_uncertainty_correct": 0.0056,
-  "mean_uncertainty_wrong": 0.0135,
+  "ece_uncalibrated": 0.0764,
+  "ece_temperature_scaled": 0.0278,
+  "temperature": 2.496,
+  "mean_uncertainty_correct": 0.0048,
+  "mean_uncertainty_wrong": 0.019,
   "n_test": 613,
   "split": "patient-level (PID), stratified, seed 0",
-  "n_patients_total": 233,
+  "n_patients_total": 209,
   "splits": {
     "train": {
-      "n_slices": 2145,
-      "n_patients": 164,
-      "n_glioma_patients": 62
+      "n_slices": 2144,
+      "n_patients": 148,
+      "n_glioma_patients": 46
     },
     "val": {
-      "n_slices": 306,
-      "n_patients": 23,
-      "n_glioma_patients": 9
+      "n_slices": 307,
+      "n_patients": 20,
+      "n_glioma_patients": 6
     },
     "test": {
       "n_slices": 613,
-      "n_patients": 46,
-      "n_glioma_patients": 18
+      "n_patients": 41,
+      "n_glioma_patients": 13
     }
   }
 }

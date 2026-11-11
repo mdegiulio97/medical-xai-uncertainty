@@ -19,6 +19,7 @@ DOI: 10.6084/m9.figshare.1512427 (CC BY 4.0).
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import h5py
@@ -49,6 +50,16 @@ def read_mat_pid(path: Path | str) -> str:
     return "".join(chr(int(c)) for c in codes).strip()
 
 
+_SERIES_SUFFIX = re.compile(r"^(MR\d+)[A-Z]$")
+
+
+def patient_group(pid: str) -> str:
+    """Grouping key for a PID: MR IDs that differ only by a trailing letter
+    (e.g. MR040240, MR040240B, MR040240C) are treated as the same patient."""
+    m = _SERIES_SUFFIX.match(pid)
+    return m.group(1) if m else pid
+
+
 def image_to_tensor(image: np.ndarray, img_size: int = IMG_SIZE) -> torch.Tensor:
     """Scale to [0,1], resize to img_size, 3 channels, normalise to +/-1.
 
@@ -73,7 +84,8 @@ def load_tumor_tensors(
     """Load every .mat in a directory as binary (X (N,3,H,W), y (N,), groups (N,)).
 
     y = 1 if the class is ``positive_label`` (glioma), else 0. ``groups`` holds
-    the patient ID of each slice, used for patient-level splitting.
+    the patient group of each slice (see ``patient_group``), used for
+    patient-level splitting.
     """
     files = sorted(Path(mat_dir).glob("*.mat"))
     if not files:
@@ -85,7 +97,7 @@ def load_tumor_tensors(
         image, label = read_mat_image(p)
         xs.append(image_to_tensor(image, img_size))
         ys.append(1 if label == positive_label else 0)
-        pids.append(read_mat_pid(p))
+        pids.append(patient_group(read_mat_pid(p)))
     return torch.stack(xs), torch.tensor(ys, dtype=torch.long), np.array(pids, dtype=object)
 
 

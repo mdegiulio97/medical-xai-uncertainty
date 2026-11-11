@@ -29,8 +29,8 @@
   DOI 10.1038/s41597-022-01721-8), CC BY 4.0: paediatric chest X-rays, resized to 64x64 and
   replicated to 3 channels; official MedMNIST split.
 - **Cheng brain tumour dataset** (figshare, DOI 10.6084/m9.figshare.1512427), CC BY 4.0:
-  3064 contrast-enhanced T1w slices from 233 patients, resized to 64x64.
-  **Split by patient** (train/val/test = 164/23/46 patients), stratified, seed 0.
+  3064 contrast-enhanced T1w slices from 233 patient IDs (209 patients after grouping), resized to 64x64.
+  **Split by patient**, with IDs differing only by a trailing letter grouped together (train/val/test = 148/20/41 patients), stratified, seed 0.
 - Both datasets are downloaded by script and are not included in the repository.
 
 ## Metrics
@@ -44,18 +44,18 @@ Chest X-ray (`results/metrics.json`, n_test = 624):
 
 ECE 0.172 -> 0.146 (T = 1.81); mean uncertainty 0.0033 (correct) vs 0.0104 (wrong).
 
-Brain MRI (`results/tumor_metrics.json`, n_test = 613 slices from 46 unseen patients, 18 with glioma):
+Brain MRI (`results/tumor_metrics.json`, n_test = 613 slices from 41 unseen patients, 13 with glioma):
 
 | Metric | ResNet-18 (deep) | Logistic baseline |
 |---|:--:|:--:|
-| AUROC | **0.961** | 0.881 |
-| F1 | 0.572 | 0.774 |
-| Accuracy @0.5 | 0.719 | 0.791 |
+| AUROC | **0.942** | 0.846 |
+| F1 | 0.876 | 0.744 |
+| Accuracy @0.5 | 0.883 | 0.759 |
 
-ECE 0.237 -> 0.070 (T = 7.54); mean uncertainty 0.0056 (correct) vs 0.0135 (wrong).
+ECE 0.076 -> 0.028 (T = 2.50); mean uncertainty 0.0048 (correct) vs 0.0190 (wrong).
 
-In both tracks the deep model ranks better (AUROC) while accuracy and F1 at the fixed 0.5
-threshold are below the linear baseline; the raw brain-MRI network is strongly over-confident.
+Chest track: the deep model ranks better (AUROC) while accuracy and F1 at the fixed 0.5
+threshold are below the linear baseline. Brain track: The deep model is better than the baseline on every metric here, including accuracy and F1 at the fixed 0.5 threshold, and calibration reduces the ECE. Training runs a fixed 5 epochs without early stopping, with one seed and one split, so the threshold-dependent metrics are not stable from run to run.
 
 ## Ethical considerations and limitations
 - **Chest track**: paediatric population, low resolution; results do not transfer to adults or

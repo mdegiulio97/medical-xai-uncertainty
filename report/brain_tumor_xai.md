@@ -7,13 +7,13 @@ brain MRI.
 ## Data
 
 **Cheng brain tumour dataset** (figshare), CC BY 4.0 [3]: 3064 contrast-enhanced T1w slices
-from 233 patients, labelled meningioma, glioma or pituitary tumour. The task is
+from 233 patient IDs (209 patients after grouping), labelled meningioma, glioma or pituitary tumour. The task is
 binary: **glioma vs non-glioma**. Images are normalised and resized to 3x64x64. Raw data are not
 redistributed; `scripts/download_tumor.py` downloads all four parts and checks their MD5.
 
-**Patient-level split.** Train / validation / test = 164 / 23 / 46 patients
-(2145 / 306 / 613 slices; 62 / 9 / 18 patients with glioma), from a
-stratified group K-fold with seed 0. No patient appears in more than one split. An earlier version
+**Patient-level split.** Train / validation / test = 148 / 20 / 41 patients
+(2144 / 307 / 613 slices; 46 / 6 / 13 patients with glioma), from a
+stratified group K-fold with seed 0. No patient appears in more than one split; patient IDs that differ only by a trailing letter (for example MR040240 and MR040240B, separate series of the same patient) are grouped together. Grouping is by ID only, so a patient listed under unrelated IDs would not be caught. An earlier version
 of this repository split by slice and used one quarter of the dataset; with that setup slices of the
 same patient fell on both sides and the scores were not meaningful.
 
@@ -27,26 +27,23 @@ same patient fell on both sides and the scores were not meaningful.
 
 ## Results
 
-From `results/tumor_metrics.json` (test = 613 slices from 46 unseen patients):
+From `results/tumor_metrics.json` (test = 613 slices from 41 unseen patients):
 
 | | ResNet18 | Logistic baseline |
 |---|---|---|
-| **AUROC** | **0.961** | 0.881 |
-| F1 | 0.572 | 0.774 |
-| Accuracy @0.5 | 0.719 | 0.791 |
+| **AUROC** | **0.942** | 0.846 |
+| F1 | 0.876 | 0.744 |
+| Accuracy @0.5 | 0.883 | 0.759 |
 
-- **Calibration**: ECE **0.237 -> 0.070** with temperature scaling (T = 7.54).
-- **Uncertainty**: mean **0.0056** on correct predictions vs **0.0135** on errors.
+- **Calibration**: ECE **0.076 -> 0.028** with temperature scaling (T = 2.50).
+- **Uncertainty**: mean **0.0048** on correct predictions vs **0.0190** on errors.
 
-**Reading the numbers.** The deep model ranks slices much better than the baseline (AUROC), but at
-the fixed 0.5 threshold its accuracy and F1 are below the baseline, and before calibration it is
-strongly over-confident (large fitted temperature). The validation loss rises at the last of the
-5 epochs, so a checkpoint chosen on validation loss would likely behave differently. Figures:
+**Reading the numbers.** The deep model is better than the baseline on every metric here, including accuracy and F1 at the fixed 0.5 threshold, and calibration reduces the ECE. Training runs a fixed 5 epochs without early stopping, with one seed and one split, so the threshold-dependent metrics are not stable from run to run. Figures:
 `results/tumor_reliability.png`, `results/tumor_gradcam.png`, `results/tumor_uncertainty.png`.
 
 ## Limitations
 
-- **One split** with 18 glioma patients in the test set: wide uncertainty on every number.
+- **One split** with 13 glioma patients in the test set: wide uncertainty on every number.
 - **Simplified binary task** (glioma vs the rest); the dataset has 3 classes.
 - 2D slices resized to 64x64: resolution and 3D context are lost.
 - **Not a clinical tool**: research demonstration on public CC BY data.
