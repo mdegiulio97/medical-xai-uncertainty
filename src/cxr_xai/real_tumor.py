@@ -1,16 +1,19 @@
-"""Caricamento del dataset Cheng di tumori cerebrali (MRI T1w CE) per il track reale.
+"""Loader for the Cheng brain-tumour dataset (contrast-enhanced T1w MRI), real-data track.
 
-Cheng et al. (figshare, CC BY 4.0): 3064 slice T1w con contrasto, etichettate in
-3 classi (1 = meningioma, 2 = glioma, 3 = adenoma ipofisario), in file MATLAB
-v7.3 (formato HDF5). Ogni file contiene una struct ``cjdata`` con ``image`` e
-``label``.
+Cheng et al. (figshare, CC BY 4.0): 3064 contrast-enhanced T1w slices from 233
+patients, labelled in 3 classes (1 = meningioma, 2 = glioma, 3 = pituitary
+tumour), stored as MATLAB v7.3 (HDF5) files. Each file holds a ``cjdata`` struct
+with ``image``, ``label`` and ``PID`` (patient ID).
 
-Qui si imposta un task **binario clinicamente rilevante**: glioma (la classe
-maligna) vs non-glioma. Le immagini sono normalizzate e portate nel formato della
-pipeline (3×64×64, normalizzazione ±1), così da riusare modello, Grad-CAM,
-incertezza e calibrazione del track chest senza modifiche.
+The task is a clinically relevant **binary** one: glioma (the malignant class)
+vs non-glioma. Images are normalised and brought to the pipeline format
+(3x64x64, +/-1 normalisation), so that model, Grad-CAM, uncertainty and
+calibration from the chest track are reused unchanged.
 
-Riferimento: Cheng J. et al., brain tumor dataset, figshare,
+Split is by patient (PID); no patient appears in more than one split. Slices of
+the same patient are highly correlated, so a slice-level split would leak.
+
+Reference: Cheng J. et al., brain tumor dataset, figshare,
 DOI: 10.6084/m9.figshare.1512427 (CC BY 4.0).
 """
 
@@ -22,6 +25,7 @@ import h5py
 import numpy as np
 import torch
 import torch.nn.functional as F
+from sklearn.model_selection import StratifiedGroupKFold
 from torch.utils.data import DataLoader, TensorDataset
 
 IMG_SIZE = 64
@@ -30,7 +34,7 @@ CLASS_NAMES = ("non-glioma", "glioma")
 
 
 def read_mat_image(path: Path | str) -> tuple[np.ndarray, int]:
-    """Legge un file .mat v7.3 di Cheng: ritorna (immagine HxW float, label int)."""
+    """Read a Cheng v7.3 .mat file: return (HxW float image, int label)."""
     with h5py.File(str(path), "r") as f:
         cj = f["cjdata"]
         label = int(np.asarray(cj["label"]).ravel()[0])
@@ -38,17 +42,24 @@ def read_mat_image(path: Path | str) -> tuple[np.ndarray, int]:
     return image, label
 
 
-def image_to_tensor(image: np.ndarray, img_size: int = IMG_SIZE) -> torch.Tensor:
-    """Normalizza in [0,1], ridimensiona a img_size, 3 canali, normalizza a ±1.
+def read_mat_pid(path: Path | str) -> str:
+    """Read the patient ID (``cjdata/PID``, stored as character codes)."""
+    with h5py.File(str(path), "r") as f:
+        codes = np.asarray(f["cjdata"]["PID"]).ravel()
+    return "".join(chr(int(c)) for c in codes).strip()
 
-    Stesso formato del track chest: (3, img_size, img_size), Normalize(0.5, 0.5).
+
+def image_to_tensor(image: np.ndarray, img_size: int = IMG_SIZE) -> torch.Tensor:
+    """Scale to [0,1], resize to img_size, 3 channels, normalise to +/-1.
+
+    Same format as the chest track: (3, img_size, img_size), Normalize(0.5, 0.5).
     """
     img = image.astype(np.float32)
     lo, hi = float(img.min()), float(img.max())
     img = (img - lo) / max(hi - lo, 1e-6)
     t = torch.from_numpy(img)[None, None]  # (1,1,H,W)
     t = F.interpolate(t, size=(img_size, img_size), mode="bilinear", align_corners=False)
-    t = t.repeat(1, 3, 1, 1)  # 3 canali
+    t = t.repeat(1, 3, 1, 1)  # 3 channels
     t = (t - 0.5) / 0.5
     return t[0]  # (3, img_size, img_size)
 
@@ -58,43 +69,63 @@ def load_tumor_tensors(
     img_size: int = IMG_SIZE,
     positive_label: int = GLIOMA_LABEL,
     max_n: int | None = None,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Carica tutti i .mat in una directory come (X (N,3,H,W), y (N,)) binari.
+) -> tuple[torch.Tensor, torch.Tensor, np.ndarray]:
+    """Load every .mat in a directory as binary (X (N,3,H,W), y (N,), groups (N,)).
 
-    y = 1 se la classe è ``positive_label`` (glioma), altrimenti 0.
+    y = 1 if the class is ``positive_label`` (glioma), else 0. ``groups`` holds
+    the patient ID of each slice, used for patient-level splitting.
     """
     files = sorted(Path(mat_dir).glob("*.mat"))
     if not files:
-        raise FileNotFoundError(f"Nessun .mat in {mat_dir}")
+        raise FileNotFoundError(f"No .mat files in {mat_dir}")
     if max_n is not None:
         files = files[:max_n]
-    xs, ys = [], []
+    xs, ys, pids = [], [], []
     for p in files:
         image, label = read_mat_image(p)
         xs.append(image_to_tensor(image, img_size))
         ys.append(1 if label == positive_label else 0)
-    return torch.stack(xs), torch.tensor(ys, dtype=torch.long)
+        pids.append(read_mat_pid(p))
+    return torch.stack(xs), torch.tensor(ys, dtype=torch.long), np.array(pids, dtype=object)
+
+
+def group_split_indices(
+    y: np.ndarray,
+    groups: np.ndarray,
+    fracs: tuple[float, float, float] = (0.7, 0.1, 0.2),
+    seed: int = 0,
+) -> dict[str, np.ndarray]:
+    """Patient-level, class-stratified train/val/test split (indices).
+
+    Test = first fold of a StratifiedGroupKFold with ~1/fracs[2] folds; val =
+    first fold of the same on the remainder; the rest is train. No group is
+    shared between splits.
+    """
+    y = np.asarray(y).ravel()
+    groups = np.asarray(groups)
+    idx = np.arange(len(y))
+    n_test = max(2, round(1 / fracs[2]))
+    sgkf = StratifiedGroupKFold(n_splits=n_test, shuffle=True, random_state=seed)
+    rest, test = next(sgkf.split(idx, y, groups))
+    n_val = max(2, round((1 - fracs[2]) / fracs[1]))
+    sgkf = StratifiedGroupKFold(n_splits=n_val, shuffle=True, random_state=seed)
+    tr, va = next(sgkf.split(rest, y[rest], groups[rest]))
+    return {"train": np.sort(rest[tr]), "val": np.sort(rest[va]), "test": np.sort(test)}
 
 
 def make_loaders(
     x: torch.Tensor,
     y: torch.Tensor,
+    groups: np.ndarray,
     batch_size: int = 64,
     seed: int = 0,
     fracs: tuple[float, float, float] = (0.7, 0.1, 0.2),
 ) -> dict[str, DataLoader]:
-    """Split casuale (riproducibile) in train/val/test come DataLoader."""
-    n = x.shape[0]
-    perm = torch.randperm(n, generator=torch.Generator().manual_seed(seed))
-    n_tr = int(fracs[0] * n)
-    n_va = int(fracs[1] * n)
-    splits = {
-        "train": perm[:n_tr],
-        "val": perm[n_tr : n_tr + n_va],
-        "test": perm[n_tr + n_va :],
-    }
+    """Patient-level train/val/test split (reproducible) as DataLoaders."""
+    splits = group_split_indices(y.numpy(), groups, fracs=fracs, seed=seed)
     loaders = {}
     for name, idx in splits.items():
-        ds = TensorDataset(x[idx], y[idx])
+        t = torch.from_numpy(idx)
+        ds = TensorDataset(x[t], y[t])
         loaders[name] = DataLoader(ds, batch_size=batch_size, shuffle=(name == "train"))
     return loaders

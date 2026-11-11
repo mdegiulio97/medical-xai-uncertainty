@@ -1,16 +1,16 @@
-"""Track REALE: classificazione tumore cerebrale (glioma vs non-glioma) su MRI Cheng.
+"""Real-data track: brain-tumour classification (glioma vs non-glioma) on Cheng MRI.
 
-Riusa l'intera metodologia del track chest — ResNet18, Grad-CAM, incertezza
-MC-Dropout, calibrazione con temperature scaling, baseline logistica — applicata a
-slice T1w cerebrali reali (Cheng, CC BY 4.0). Senza modifiche al modello.
+Reuses the whole chest-track methodology (ResNet18, Grad-CAM, MC-Dropout
+uncertainty, temperature-scaling calibration, logistic baseline) on real T1w
+brain slices (Cheng, CC BY 4.0), with a patient-level split. Model unchanged.
 
-Produce:
+Outputs:
 - results/tumor_metrics.json
 - results/tumor_reliability.png
 - results/tumor_gradcam.png
 - results/tumor_uncertainty.png
 
-Uso:
+Usage:
     uv run python scripts/download_tumor.py
     uv run python scripts/evaluate_tumor.py
 """
@@ -36,7 +36,13 @@ from cxr_xai.calibration import (  # noqa: E402
 from cxr_xai.gradcam import GradCAM, resnet_target_layer  # noqa: E402
 from cxr_xai.metrics import classification_metrics  # noqa: E402
 from cxr_xai.model import build_model, get_device  # noqa: E402
-from cxr_xai.real_tumor import CLASS_NAMES, IMG_SIZE, load_tumor_tensors, make_loaders  # noqa: E402
+from cxr_xai.real_tumor import (  # noqa: E402
+    CLASS_NAMES,
+    IMG_SIZE,
+    group_split_indices,
+    load_tumor_tensors,
+    make_loaders,
+)
 from cxr_xai.training import collect_logits, probs_from_logits, train_model  # noqa: E402
 from cxr_xai.uncertainty import mc_dropout_predict  # noqa: E402
 
@@ -60,19 +66,29 @@ def _tensors(loader):
 
 def main() -> None:
     if not IMAGES_DIR.exists() or not list(IMAGES_DIR.glob("*.mat")):
-        raise SystemExit("Dati assenti. Esegui prima:  uv run python scripts/download_tumor.py")
+        raise SystemExit("Data missing. Run first:  uv run python scripts/download_tumor.py")
 
     RESULTS.mkdir(exist_ok=True)
     device = get_device()
     print(f"Device: {device}")
 
-    x, y = load_tumor_tensors(IMAGES_DIR, img_size=IMG_SIZE)
+    x, y, groups = load_tumor_tensors(IMAGES_DIR, img_size=IMG_SIZE)
     pos = int(y.sum())
-    print(f"{len(y)} slice — glioma={pos}, non-glioma={len(y) - pos}")
-    loaders = make_loaders(x, y, batch_size=64, seed=0)
+    print(f"{len(y)} slices from {len(set(groups))} patients - glioma={pos}, non-glioma={len(y) - pos}")
+    split_idx = group_split_indices(y.numpy(), groups, seed=0)
+    split_info = {
+        k: {
+            "n_slices": int(len(v)),
+            "n_patients": int(len(set(groups[v]))),
+            "n_glioma_patients": int(len(set(groups[v][y.numpy()[v] == 1]))),
+        }
+        for k, v in split_idx.items()
+    }
+    print(f"Patient-level split: {split_info}")
+    loaders = make_loaders(x, y, groups, batch_size=64, seed=0)
 
     model = build_model(num_classes=2, dropout=0.3, pretrained=True)
-    print("Addestro ResNet18 (5 epoche)...")
+    print("Training ResNet18 (5 epochs)...")
     train_model(model, loaders["train"], loaders["val"], epochs=5, device=device)
     model.to(device)
 
@@ -100,7 +116,7 @@ def main() -> None:
             "name": "Cheng brain tumor (figshare)",
             "license": "CC BY 4.0",
             "doi": "10.6084/m9.figshare.1512427",
-            "task": "glioma vs non-glioma (binario)",
+            "task": "glioma vs non-glioma (binary)",
             "modality": "T1w CE (brain MRI)",
         },
         "deep_model": deep,
@@ -113,21 +129,24 @@ def main() -> None:
             round(float(epistemic[~correct].mean()), 4) if (~correct).any() else None
         ),
         "n_test": int(len(y_np)),
+        "split": "patient-level (PID), stratified, seed 0",
+        "n_patients_total": int(len(set(groups))),
+        "splits": split_info,
     }
     (RESULTS / "tumor_metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     print(f"\nAUROC deep={deep['auroc']:.3f}  baseline={base['auroc']:.3f}  "
           f"ECE {ece_raw:.3f}->{ece_cal:.3f}")
-    print(f"Incertezza media: corretti={metrics['mean_uncertainty_correct']}  "
-          f"errati={metrics['mean_uncertainty_wrong']}")
+    print(f"Mean uncertainty: correct={metrics['mean_uncertainty_correct']}  "
+          f"wrong={metrics['mean_uncertainty_wrong']}")
 
     # --- Reliability diagram ---
     fig, ax = plt.subplots(figsize=(5, 5))
-    ax.plot([0, 1], [0, 1], "k--", lw=1, label="perfetta")
-    for prob, name, mk in [(prob_raw, "non calibrato", "o-"), (prob_cal, "temp. scaling", "s-")]:
+    ax.plot([0, 1], [0, 1], "k--", lw=1, label="perfect")
+    for prob, name, mk in [(prob_raw, "uncalibrated", "o-"), (prob_cal, "temp. scaling", "s-")]:
         xs, ys = reliability_curve(prob, y_np)
         ax.plot(xs, ys, mk, label=name)
-    ax.set_xlabel("confidenza media")
-    ax.set_ylabel("accuratezza")
+    ax.set_xlabel("mean confidence")
+    ax.set_ylabel("accuracy")
     ax.set_title("Reliability diagram — glioma vs non-glioma")
     ax.legend()
     fig.tight_layout()
@@ -148,25 +167,25 @@ def main() -> None:
             fontsize=9,
         )
         ax.axis("off")
-    fig.suptitle("Grad-CAM su MRI cerebrale (Cheng, CC BY 4.0)")
+    fig.suptitle("Grad-CAM on brain MRI (Cheng, CC BY 4.0)")
     fig.tight_layout()
     fig.savefig(RESULTS / "tumor_gradcam.png", dpi=130)
     plt.close(fig)
 
-    # --- Incertezza ---
+    # --- Uncertainty ---
     fig, ax = plt.subplots(figsize=(5, 4))
-    ax.hist(epistemic[correct], bins=20, alpha=0.6, label="corrette", density=True)
+    ax.hist(epistemic[correct], bins=20, alpha=0.6, label="correct", density=True)
     if (~correct).any():
-        ax.hist(epistemic[~correct], bins=20, alpha=0.6, label="errate", density=True)
-    ax.set_xlabel("incertezza epistemica (std MC-Dropout)")
-    ax.set_ylabel("densità")
-    ax.set_title("Incertezza più alta sugli errori")
+        ax.hist(epistemic[~correct], bins=20, alpha=0.6, label="wrong", density=True)
+    ax.set_xlabel("epistemic uncertainty (MC-Dropout std)")
+    ax.set_ylabel("density")
+    ax.set_title("Uncertainty on correct vs wrong predictions")
     ax.legend()
     fig.tight_layout()
     fig.savefig(RESULTS / "tumor_uncertainty.png", dpi=130)
     plt.close(fig)
 
-    print(f"Salvati: tumor_metrics.json + 3 figure in {RESULTS}")
+    print(f"Saved: tumor_metrics.json + 3 figures in {RESULTS}")
 
 
 if __name__ == "__main__":
