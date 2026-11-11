@@ -1,6 +1,6 @@
-"""Addestra il classificatore e salva il checkpoint in results/model.pt.
+"""Train the classifier and save the checkpoint to results/model.pt.
 
-Esegui:  uv run python scripts/train.py --epochs 3
+Run:  uv run python scripts/train.py --epochs 3
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ def main() -> None:
 
     ckpt = RESULTS / "model.pt"
     torch.save({"state_dict": model.state_dict(), "history": history}, ckpt)
-    print(f"Salvato checkpoint: {ckpt}")
+    print(f"Saved checkpoint: {ckpt}")
 
 
 if __name__ == "__main__":

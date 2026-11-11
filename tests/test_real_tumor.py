@@ -1,8 +1,8 @@
-"""Test offline del loader Cheng (nessun download).
+"""Offline tests of the Cheng loader (no download).
 
-Si scrivono alcuni file .mat v7.3 (HDF5) sintetici con struct ``cjdata`` e si
-verifica lettura, etichettatura binaria (glioma vs non-glioma), formato dei
-tensori e split in DataLoader.
+A few synthetic .mat v7.3 (HDF5) files with a ``cjdata`` struct are written, then
+reading, binary labelling (glioma vs non-glioma), tensor format and the
+DataLoader split are checked.
 """
 
 from __future__ import annotations
@@ -52,7 +52,7 @@ def test_load_tumor_tensors_binary_labels(tmp_path):
     x, y, groups = load_tumor_tensors(tmp_path, img_size=32)
     assert x.shape == (4, 3, 32, 32)
     assert len(groups) == 4
-    # glioma = label 2 -> 1; gli altri -> 0
+    # glioma = label 2 -> 1; all others -> 0
     assert y.tolist() == [0, 1, 0, 1]
 
 

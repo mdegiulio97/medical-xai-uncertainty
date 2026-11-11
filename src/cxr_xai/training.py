@@ -1,4 +1,4 @@
-"""Loop di addestramento e raccolta dei logit per la calibrazione."""
+"""Training loop and logit collection for calibration."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def train_model(
     device: torch.device | None = None,
     verbose: bool = True,
 ) -> dict:
-    """Addestra il modello (Adam + cross-entropy). Ritorna lo storico delle loss."""
+    """Train the model (Adam + cross-entropy). Returns the loss history."""
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
@@ -60,7 +60,7 @@ def _eval_loss(model: nn.Module, loader: DataLoader, device: torch.device) -> fl
 def collect_logits(
     model: nn.Module, loader: DataLoader, device: torch.device | None = None
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Raccoglie (logits, labels) su un loader, in eval mode (dropout spento)."""
+    """Collect (logits, labels) over a loader, in eval mode (dropout off)."""
     device = device or next(model.parameters()).device
     model.eval()
     logits, labels = [], []
@@ -71,6 +71,6 @@ def collect_logits(
 
 
 def probs_from_logits(logits: torch.Tensor, temperature: float = 1.0) -> np.ndarray:
-    """Probabilità della classe positiva da logit, con temperatura opzionale."""
+    """Positive-class probability from logits, with optional temperature."""
     p = F.softmax(logits / temperature, dim=1).numpy()
     return p[:, 1]

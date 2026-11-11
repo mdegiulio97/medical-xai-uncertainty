@@ -1,4 +1,4 @@
-"""Metriche di classificazione binaria."""
+"""Binary classification metrics."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from sklearn.metrics import f1_score, roc_auc_score
 
 
 def classification_metrics(y_true: np.ndarray, prob_pos: np.ndarray) -> dict:
-    """AUROC, F1 e accuracy data la probabilità della classe positiva (pneumonia)."""
+    """AUROC, F1 and accuracy given the probability of the positive class (pneumonia)."""
     y_true = np.asarray(y_true).ravel()
     prob_pos = np.asarray(prob_pos).ravel()
     pred = (prob_pos >= 0.5).astype(int)
