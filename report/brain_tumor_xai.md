@@ -1,55 +1,57 @@
-# Classificazione di tumore cerebrale (glioma vs non-glioma) con spiegabilità e incertezza
+# Brain-tumour classification (glioma vs non-glioma) with explainability and uncertainty
 
-Mini-report del *track dati reali* di `cxr-xai-uncertainty`. La stessa metodologia del
-track chest (ResNet18 + Grad-CAM + incertezza MC-Dropout + calibrazione) viene applicata,
-**senza modifiche al modello**, a MRI cerebrale reale.
+Short report on the real-data track of this repository. The chest-track method (ResNet18 +
+Grad-CAM + MC-Dropout uncertainty + calibration) is applied, **with the model unchanged**, to real
+brain MRI.
 
-## Dati
+## Data
 
-**Cheng brain tumor dataset** (figshare), licenza **CC BY 4.0** [3]. Slice T1w con mezzo di
-contrasto, etichettate in 3 classi (meningioma, glioma, adenoma ipofisario). Si usa la
-**parte 1/4** pubblica (766 slice) e si imposta un task **binario clinicamente rilevante**:
-**glioma** (la classe maligna) **vs non-glioma**. Le immagini sono normalizzate e portate al
-formato della pipeline (3×64×64), così da riusare modello, Grad-CAM, incertezza e
-calibrazione. I dati grezzi non sono ridistribuiti: si scaricano con `scripts/download_tumor.py`.
+**Cheng brain tumour dataset** (figshare), CC BY 4.0 [3]: 3064 contrast-enhanced T1w slices
+from 233 patients, labelled meningioma, glioma or pituitary tumour. The task is
+binary: **glioma vs non-glioma**. Images are normalised and resized to 3x64x64. Raw data are not
+redistributed; `scripts/download_tumor.py` downloads all four parts and checks their MD5.
 
-## Metodo
+**Patient-level split.** Train / validation / test = 164 / 23 / 46 patients
+(2145 / 306 / 613 slices; 62 / 9 / 18 patients with glioma), from a
+stratified group K-fold with seed 0. No patient appears in more than one split. An earlier version
+of this repository split by slice and used one quarter of the dataset; with that setup slices of the
+same patient fell on both sides and the scores were not meaningful.
 
-- **ResNet18** (pre-addestrato ImageNet) con dropout, addestrato 5 epoche.
-- **Spiegabilità**: Grad-CAM [1].
-- **Incertezza**: MC-Dropout [2] (20 campioni; deviazione standard come incertezza epistemica).
-- **Calibrazione**: temperature scaling post-hoc; **ECE** come metrica.
-- **Baseline**: regressione logistica sui pixel.
+## Method
 
-## Risultati
+- **ResNet18** (ImageNet weights) with dropout, trained for 5 epochs, no early stopping.
+- **Explainability**: Grad-CAM [1].
+- **Uncertainty**: MC-Dropout [2] (20 samples; standard deviation as epistemic uncertainty).
+- **Calibration**: post-hoc temperature scaling; **ECE** as the metric.
+- **Baseline**: logistic regression on pixels.
 
-Numeri reali da `results/tumor_metrics.json` (test = 154 slice held-out):
+## Results
 
-| | ResNet18 | Baseline logistica |
+From `results/tumor_metrics.json` (test = 613 slices from 46 unseen patients):
+
+| | ResNet18 | Logistic baseline |
 |---|---|---|
-| **AUROC** | **0.980** | 0.859 |
-| F1 | 0.621 | 0.571 |
-| Accuracy @0.5 | 0.929 | 0.961 |
+| **AUROC** | **0.961** | 0.881 |
+| F1 | 0.572 | 0.774 |
+| Accuracy @0.5 | 0.719 | 0.791 |
 
-- **Calibrazione**: ECE **0.039 → 0.013** con temperature scaling (T = 1.24).
-- **Incertezza**: media **0.0127** sulle predizioni corrette vs **0.0573** sugli errori
-  (**~4.5× più alta sugli errori**) — l'incertezza MC-Dropout è un segnale utile per
-  l'abstention/triage.
+- **Calibration**: ECE **0.237 -> 0.070** with temperature scaling (T = 7.54).
+- **Uncertainty**: mean **0.0056** on correct predictions vs **0.0135** on errors.
 
-**Lettura onesta.** Come nel track chest, il modello profondo domina in **AUROC** (0.980 vs
-0.859) ma a soglia fissa 0.5 la sua accuracy è leggermente sotto la baseline (0.929 vs 0.961):
-la classe glioma è minoritaria e la soglia non è ottimizzata (F1 modesto). Il valore del
-modello sta in **capacità di ranking + incertezza + calibrazione**, non nell'accuracy grezza.
-Figure: `results/tumor_reliability.png`, `results/tumor_gradcam.png`, `results/tumor_uncertainty.png`.
+**Reading the numbers.** The deep model ranks slices much better than the baseline (AUROC), but at
+the fixed 0.5 threshold its accuracy and F1 are below the baseline, and before calibration it is
+strongly over-confident (large fitted temperature). The validation loss rises at the last of the
+5 epochs, so a checkpoint chosen on validation loss would likely behave differently. Figures:
+`results/tumor_reliability.png`, `results/tumor_gradcam.png`, `results/tumor_uncertainty.png`.
 
-## Limiti
+## Limitations
 
-- **Sottoinsieme** del dataset (766/3064 slice, una parte) e **un solo split**: demo, non studio.
-- **Task binario semplificato** (glioma vs resto); il dataset è in origine a 3 classi.
-- Slice 2D ridimensionate a 64×64: si perde risoluzione e contesto 3D.
-- **Non è uno strumento clinico**: dimostrazione di ricerca su dati pubblici CC BY.
+- **One split** with 18 glioma patients in the test set: wide uncertainty on every number.
+- **Simplified binary task** (glioma vs the rest); the dataset has 3 classes.
+- 2D slices resized to 64x64: resolution and 3D context are lost.
+- **Not a clinical tool**: research demonstration on public CC BY data.
 
-## Riferimenti
+## References
 
 1. Selvaraju RR, Cogswell M, Das A, et al. *Grad-CAM: Visual Explanations from Deep Networks
    via Gradient-based Localization.* ICCV 2017. DOI:
