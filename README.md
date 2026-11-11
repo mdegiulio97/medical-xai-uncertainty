@@ -29,26 +29,26 @@ uncertainty (MC-Dropout)  calibration (temperature)  Grad-CAM
 
 ## Brain MRI track: glioma vs non-glioma (Cheng, CC BY 4.0)
 
-Contrast-enhanced T1w slices from the **Cheng brain tumour dataset** (figshare, CC BY 4.0): 3064 slices from 233 patients. Binary task: glioma vs meningioma/pituitary tumour.
+Contrast-enhanced T1w slices from the **Cheng brain tumour dataset** (figshare, CC BY 4.0): 3064 slices from 233 patient IDs, grouped into 209 patients. Binary task: glioma vs meningioma/pituitary tumour.
 
-**Split by patient**: train / validation / test = 164 / 23 / 46 patients (62 / 9 / 18 with glioma), stratified, seed 0. No patient appears in more than one split. Slices of the same patient are strongly correlated, so a slice-level split would let the model recognise patients it has already seen.
+**Split by patient**: train / validation / test = 148 / 20 / 41 patients (46 / 6 / 13 with glioma), stratified, seed 0. No patient appears in more than one split; patient IDs that differ only by a trailing letter (for example MR040240 and MR040240B, separate series of the same patient) are grouped together. Grouping is by ID only, so a patient listed under unrelated IDs would not be caught. Slices of the same patient are strongly correlated, so a slice-level split would let the model recognise patients it has already seen.
 
 ```bash
 uv run python scripts/download_tumor.py    # all four figshare parts, ~880 MB, MD5-checked (data not committed)
 uv run python scripts/evaluate_tumor.py    # ResNet18 + XAI + uncertainty -> results/tumor_*
 ```
 
-Test set: 613 slices from 46 unseen patients (`results/tumor_metrics.json`).
+Test set: 613 slices from 41 unseen patients (`results/tumor_metrics.json`).
 
 | | AUROC | F1 | Accuracy |
 |--|:--:|:--:|:--:|
-| **ResNet18 (deep)** | **0.961** | 0.572 | 0.719 |
-| Logistic baseline | 0.881 | 0.774 | 0.791 |
+| **ResNet18 (deep)** | **0.942** | 0.876 | 0.883 |
+| Logistic baseline | 0.846 | 0.744 | 0.759 |
 
-- **Calibration (ECE, lower is better)**: 0.237 -> **0.070** with temperature scaling (T = 7.54).
-- **Uncertainty (MC-Dropout)**: 0.0056 on correct vs 0.0135 on wrong predictions, about 2.4x higher on errors.
+- **Calibration (ECE, lower is better)**: 0.076 -> **0.028** with temperature scaling (T = 2.50).
+- **Uncertainty (MC-Dropout)**: 0.0048 on correct vs 0.0190 on wrong predictions, about 4.0x higher on errors.
 
-**Reading the numbers.** The deep model ranks slices much better than the baseline (AUROC), but at the fixed 0.5 threshold its accuracy and F1 are *below* the baseline, and the raw network is strongly over-confident (the fitted temperature is large). Training runs a fixed 5 epochs without early stopping, and the validation loss rises at the last epoch. A single split with 18 glioma patients in the test set leaves wide uncertainty on every number. Report with references: [`report/brain_tumor_xai.md`](report/brain_tumor_xai.md).
+**Reading the numbers.** The deep model is better than the baseline on every metric here, including accuracy and F1 at the fixed 0.5 threshold, and calibration reduces the ECE. Training runs a fixed 5 epochs without early stopping, with one seed and one split, so the threshold-dependent metrics are not stable from run to run. A single split with 13 glioma patients in the test set leaves wide uncertainty on every number. Report with references: [`report/brain_tumor_xai.md`](report/brain_tumor_xai.md).
 
 ## Chest X-ray track (PneumoniaMNIST, CC BY 4.0)
 

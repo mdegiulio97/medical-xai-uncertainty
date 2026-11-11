@@ -101,3 +101,20 @@ def test_group_split_reproducible():
     b = group_split_indices(y, groups, seed=3)
     for k in a:
         assert np.array_equal(a[k], b[k])
+
+
+def test_patient_group_strips_series_suffix():
+    from cxr_xai.real_tumor import patient_group
+
+    assert patient_group("MR040240B") == "MR040240"
+    assert patient_group("MR040240") == "MR040240"
+    assert patient_group("MR029209E") == "MR029209"
+    assert patient_group("100360") == "100360"
+
+
+def test_load_groups_series_of_same_patient(tmp_path):
+    rng = np.random.default_rng(0)
+    for i, pid in enumerate(["MR051644", "MR051644B", "MR051644C", "112233"], start=1):
+        _write_mat(tmp_path / f"{i}.mat", rng.uniform(0, 1000, size=(16, 16)), 2, pid=pid)
+    _, _, groups = load_tumor_tensors(tmp_path, img_size=16)
+    assert sorted(set(groups)) == ["112233", "MR051644"]
