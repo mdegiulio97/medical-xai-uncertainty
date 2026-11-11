@@ -1,10 +1,10 @@
-"""Caricamento dati PneumoniaMNIST (medmnist).
+"""PneumoniaMNIST data loading (medmnist).
 
-PneumoniaMNIST (MedMNIST v2) è un dataset di radiografie del torace pediatriche
-etichettate come *pneumonia* vs *normal*, ridimensionate e standardizzate.
-Licenza CC BY 4.0, download automatico senza registrazione.
+PneumoniaMNIST (MedMNIST v2) is a dataset of paediatric chest X-rays labelled
+*pneumonia* vs *normal*, resized and standardised.
+CC BY 4.0 licence, automatic download with no registration.
 
-Riferimento: Yang J. et al., "MedMNIST v2 — A large-scale lightweight benchmark
+Reference: Yang J. et al., "MedMNIST v2 — A large-scale lightweight benchmark
 for 2D and 3D biomedical image classification", Scientific Data 10:41, 2023.
 DOI: 10.1038/s41597-022-01721-8
 """
@@ -35,11 +35,11 @@ def _transform() -> transforms.Compose:
 
 
 def load_split(split: str, batch_size: int = 128, shuffle: bool | None = None) -> DataLoader:
-    """Carica uno split PneumoniaMNIST come DataLoader (tensori 3×64×64).
+    """Load a PneumoniaMNIST split as a DataLoader (3×64×64 tensors).
 
-    `split` in {"train", "val", "test"}. Scarica i dati in `data/` se assenti.
+    `split` in {"train", "val", "test"}. Downloads the data to `data/` if missing.
     """
-    from medmnist import PneumoniaMNIST  # import locale: pesante e non serve nei test
+    from medmnist import PneumoniaMNIST  # local import: heavy and not needed in tests
 
     DATA_ROOT.mkdir(exist_ok=True)
     ds = PneumoniaMNIST(
@@ -51,7 +51,7 @@ def load_split(split: str, batch_size: int = 128, shuffle: bool | None = None) -
 
 
 def loader_to_tensors(loader: DataLoader) -> tuple[torch.Tensor, torch.Tensor]:
-    """Materializza un DataLoader in (X, y) con y interi 1-D."""
+    """Materialise a DataLoader into (X, y), with y as 1-D integers."""
     xs, ys = [], []
     for x, y in loader:
         xs.append(x)
@@ -64,19 +64,19 @@ def loader_to_tensors(loader: DataLoader) -> tuple[torch.Tensor, torch.Tensor]:
 def make_fake_loader(
     n: int = 32, batch_size: int = 16, seed: int = 0
 ) -> DataLoader:
-    """DataLoader sintetico (rumore) per test rapidi senza download.
+    """Synthetic (noise) DataLoader for fast tests without downloads.
 
-    Crea due classi separabili: la classe 1 ha intensità media più alta.
+    Creates two separable classes: class 1 has a higher mean intensity.
     """
     g = torch.Generator().manual_seed(seed)
     x = torch.randn(n, 3, IMG_SIZE, IMG_SIZE, generator=g) * 0.1
     y = torch.randint(0, 2, (n,), generator=g)
-    x += y.view(-1, 1, 1, 1).float() * 0.5  # segnale debole correlato alla classe
+    x += y.view(-1, 1, 1, 1).float() * 0.5  # weak signal correlated with the class
     return DataLoader(TensorDataset(x, y), batch_size=batch_size, shuffle=True)
 
 
 def denormalize(img: torch.Tensor) -> np.ndarray:
-    """Riporta un tensore normalizzato (3×H×W) a immagine [0,1] (H×W)."""
+    """Convert a normalised tensor (3×H×W) back to a [0,1] image (H×W)."""
     arr = img.detach().cpu().numpy()
     arr = arr * 0.5 + 0.5
     return np.clip(arr[0], 0.0, 1.0)

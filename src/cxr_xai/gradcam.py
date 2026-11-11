@@ -1,10 +1,10 @@
-"""Grad-CAM per spiegare le predizioni (implementazione leggera, senza dipendenze).
+"""Grad-CAM to explain predictions (lightweight implementation, no extra dependencies).
 
-Grad-CAM pesa le mappe di attivazione di un layer convoluzionale con la media
-spaziale dei gradienti della classe target, poi applica una ReLU. La heatmap
-risultante evidenzia le regioni che hanno spinto la predizione.
+Grad-CAM weights the activation maps of a convolutional layer by the spatial
+mean of the target-class gradients, then applies a ReLU. The resulting heatmap
+highlights the regions that drove the prediction.
 
-Riferimento: Selvaraju R.R. et al., "Grad-CAM: Visual Explanations from Deep
+Reference: Selvaraju R.R. et al., "Grad-CAM: Visual Explanations from Deep
 Networks via Gradient-based Localization", ICCV 2017. DOI: 10.1109/ICCV.2017.74
 """
 
@@ -16,7 +16,7 @@ import torch.nn.functional as F
 
 
 class GradCAM:
-    """Calcola Grad-CAM su un layer target (default: ultimo blocco conv di ResNet)."""
+    """Compute Grad-CAM on a target layer (default: last conv block of a ResNet)."""
 
     def __init__(self, model: torch.nn.Module, target_layer: torch.nn.Module):
         self.model = model
@@ -32,7 +32,7 @@ class GradCAM:
         self.gradients = grad_out[0].detach()
 
     def __call__(self, x: torch.Tensor, class_idx: int | None = None) -> np.ndarray:
-        """Heatmap (H, W) normalizzata in [0,1] per un singolo input (1×C×H×W)."""
+        """Heatmap (H, W) normalised to [0,1] for a single input (1×C×H×W)."""
         self.model.eval()
         logits = self.model(x)
         if class_idx is None:
@@ -54,5 +54,5 @@ class GradCAM:
 
 
 def resnet_target_layer(model: torch.nn.Module) -> torch.nn.Module:
-    """Restituisce l'ultimo blocco convoluzionale di una ResNet (layer4)."""
+    """Return the last convolutional block of a ResNet (layer4)."""
     return model.layer4[-1]

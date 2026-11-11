@@ -1,8 +1,8 @@
-"""Modello: ResNet18 con testa dropout per MC-Dropout.
+"""Model: ResNet18 with a dropout head for MC-Dropout.
 
-La rete riusa un backbone ResNet18 (pesi ImageNet se disponibili) e sostituisce
-il classificatore finale con `Dropout -> Linear`. Il dropout viene poi tenuto
-attivo a inferenza per stimare l'incertezza epistemica (MC-Dropout).
+The network reuses a ResNet18 backbone (ImageNet weights when available) and
+replaces the final classifier with `Dropout -> Linear`. Dropout is then kept
+active at inference to estimate epistemic uncertainty (MC-Dropout).
 """
 
 from __future__ import annotations
@@ -13,19 +13,19 @@ from torchvision import models
 
 
 def build_model(num_classes: int = 2, dropout: float = 0.3, pretrained: bool = True) -> nn.Module:
-    """Costruisce ResNet18 con testa dropout.
+    """Build a ResNet18 with a dropout head.
 
-    Parametri
-    ---------
-    num_classes : numero di classi (PneumoniaMNIST: 2).
-    dropout : probabilità di dropout nella testa (usata anche a inferenza per MC).
-    pretrained : se True carica i pesi ImageNet (richiede rete al primo uso).
+    Parameters
+    ----------
+    num_classes : number of classes (PneumoniaMNIST: 2).
+    dropout : dropout probability in the head (also used at inference for MC).
+    pretrained : if True, load the ImageNet weights (needs network access on first use).
     """
     weights = None
     if pretrained:
         try:
             weights = models.ResNet18_Weights.IMAGENET1K_V1
-        except Exception:  # pragma: no cover - offline / versione torchvision
+        except Exception:  # pragma: no cover - offline / torchvision version
             weights = None
     net = models.resnet18(weights=weights)
     in_features = net.fc.in_features
@@ -37,7 +37,7 @@ def build_model(num_classes: int = 2, dropout: float = 0.3, pretrained: bool = T
 
 
 def enable_mc_dropout(model: nn.Module) -> None:
-    """Mette il modello in eval ma riattiva i layer Dropout (per MC-Dropout)."""
+    """Put the model in eval mode but re-enable the Dropout layers (for MC-Dropout)."""
     model.eval()
     for m in model.modules():
         if isinstance(m, nn.Dropout):

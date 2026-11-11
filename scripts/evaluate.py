@@ -1,12 +1,12 @@
-"""Valuta il modello: metriche, calibrazione, baseline, incertezza e figure.
+"""Evaluate the model: metrics, calibration, baseline, uncertainty and figures.
 
-Se manca il checkpoint, addestra rapidamente. Salva in results/:
+If the checkpoint is missing, trains a quick model first. Saves to results/:
 - metrics.json
 - reliability_diagram.png
 - gradcam_examples.png
 - uncertainty_vs_correctness.png
 
-Esegui:  uv run python scripts/evaluate.py
+Run:  uv run python scripts/evaluate.py
 """
 
 from __future__ import annotations
@@ -42,9 +42,9 @@ def _load_or_train(device):
     model = build_model(num_classes=2, dropout=0.3, pretrained=True)
     if CKPT.exists():
         model.load_state_dict(torch.load(CKPT, map_location=device)["state_dict"])
-        print("Checkpoint caricato.")
+        print("Checkpoint loaded.")
     else:
-        print("Nessun checkpoint: addestro 3 epoche...")
+        print("No checkpoint: training for 3 epochs...")
         tr = load_split("train")
         va = load_split("val")
         train_model(model, tr, va, epochs=3, device=device)
@@ -56,12 +56,12 @@ def _load_or_train(device):
 
 def reliability_diagram(prob_raw, prob_cal, y, path):
     fig, ax = plt.subplots(figsize=(5, 5))
-    ax.plot([0, 1], [0, 1], "k--", lw=1, label="perfetta")
-    for prob, name, mk in [(prob_raw, "non calibrato", "o-"), (prob_cal, "temp. scaling", "s-")]:
+    ax.plot([0, 1], [0, 1], "k--", lw=1, label="perfect")
+    for prob, name, mk in [(prob_raw, "uncalibrated", "o-"), (prob_cal, "temp. scaling", "s-")]:
         xs, ys = reliability_curve(prob, y)
         ax.plot(xs, ys, mk, label=name)
-    ax.set_xlabel("confidenza media")
-    ax.set_ylabel("accuratezza")
+    ax.set_xlabel("mean confidence")
+    ax.set_ylabel("accuracy")
     ax.set_title("Reliability diagram")
     ax.legend()
     fig.tight_layout()
@@ -83,7 +83,7 @@ def gradcam_examples(model, x_test, y_test, prob, device, path, n=4):
         truth = CLASS_NAMES[int(y_test[i])]
         ax.set_title(f"pred={pred}\ntrue={truth} p={prob[i]:.2f}", fontsize=9)
         ax.axis("off")
-    fig.suptitle("Grad-CAM su esempi di test")
+    fig.suptitle("Grad-CAM on test examples")
     fig.tight_layout()
     fig.savefig(path, dpi=130)
     plt.close(fig)
@@ -91,11 +91,11 @@ def gradcam_examples(model, x_test, y_test, prob, device, path, n=4):
 
 def uncertainty_figure(epistemic, correct, path):
     fig, ax = plt.subplots(figsize=(5, 4))
-    ax.hist(epistemic[correct], bins=20, alpha=0.6, label="predizioni corrette", density=True)
-    ax.hist(epistemic[~correct], bins=20, alpha=0.6, label="predizioni errate", density=True)
-    ax.set_xlabel("incertezza epistemica (std MC-Dropout)")
-    ax.set_ylabel("densità")
-    ax.set_title("L'incertezza è più alta sugli errori")
+    ax.hist(epistemic[correct], bins=20, alpha=0.6, label="correct predictions", density=True)
+    ax.hist(epistemic[~correct], bins=20, alpha=0.6, label="wrong predictions", density=True)
+    ax.set_xlabel("epistemic uncertainty (MC-Dropout std)")
+    ax.set_ylabel("density")
+    ax.set_title("Uncertainty is higher on errors")
     ax.legend()
     fig.tight_layout()
     fig.savefig(path, dpi=130)
@@ -114,7 +114,7 @@ def main() -> None:
     x_test, y_test = loader_to_tensors(test_loader)
     y_np = y_test.numpy().ravel()
 
-    # Logit di test + calibrazione su validation.
+    # Test logits + calibration on the validation set.
     test_logits, _ = collect_logits(model, test_loader, device)
     val_logits, val_labels = collect_logits(model, val_loader, device)
     temperature = fit_temperature(val_logits, val_labels)
@@ -127,7 +127,7 @@ def main() -> None:
     ece_raw = expected_calibration_error(prob_raw, y_np)
     ece_cal = expected_calibration_error(prob_cal, y_np)
 
-    # Incertezza MC-Dropout.
+    # MC-Dropout uncertainty.
     mean_prob, epistemic = mc_dropout_predict(model, x_test, n_samples=20, device=device)
     pred = (mean_prob[:, 1] >= 0.5).astype(int)
     correct = pred == y_np
@@ -149,7 +149,7 @@ def main() -> None:
     (RESULTS / "metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
 
     print(json.dumps(metrics, indent=2))
-    print(f"\nSalvati metriche e 3 figure in {RESULTS}")
+    print(f"\nSaved metrics and 3 figures to {RESULTS}")
 
 
 if __name__ == "__main__":

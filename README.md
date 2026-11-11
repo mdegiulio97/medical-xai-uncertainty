@@ -1,105 +1,102 @@
-# 🫁 CXR · Classificazione spiegabile con incertezza
+# Explainable, uncertainty-aware medical image classification
 
-> Classificatore di radiografie del torace (**pneumonia vs normal**) che non si limita a predire: stima la **confidenza calibrata**, l'**incertezza epistemica** (MC-Dropout) e spiega la decisione con **Grad-CAM**. Su PneumoniaMNIST, eseguibile su GPU entry-level o CPU.
+> Classifiers that do more than predict: they report **calibrated confidence**, **epistemic uncertainty** (MC-Dropout) and a **Grad-CAM** explanation. Two tracks with the same method: real brain MRI (Cheng brain tumour, glioma vs non-glioma, split by patient) and paediatric chest X-ray (PneumoniaMNIST). Runs on an entry-level GPU or on CPU.
 
-![gradcam](results/gradcam_examples.png)
+![gradcam](results/tumor_gradcam.png)
 
-## Cosa dimostra
+## What it shows
 
-Un classificatore clinico utile deve dire anche *quanto è sicuro* e *perché*. Questo progetto mette insieme tre ingredienti spesso assenti nelle demo:
+A useful clinical classifier must also say *how sure* it is and *why*. This project combines three things often missing from demos:
 
-1. **Incertezza (MC-Dropout)** — T passaggi forward con dropout attivo a inferenza; la dispersione delle predizioni stima l'incertezza del modello. Sugli **errori** l'incertezza è più alta → utilità come flag di triage.
-2. **Calibrazione (temperature scaling)** — la confidenza grezza delle reti è mal calibrata; una singola temperatura ottimizzata su validation riduce l'**ECE**.
-3. **Spiegabilità (Grad-CAM)** — heatmap delle regioni che guidano la predizione.
+1. **Uncertainty (MC-Dropout)**: T forward passes with dropout active at inference; the spread of the predictions estimates model uncertainty. Uncertainty is higher on **errors**, so it can act as a triage flag.
+2. **Calibration (temperature scaling)**: raw network confidence is poorly calibrated; a single temperature fitted on the validation set reduces the **ECE**.
+3. **Explainability (Grad-CAM)**: heatmaps of the regions that drive the prediction.
 
-Confronto con una **baseline** (regressione logistica sui pixel) per quantificare il valore aggiunto del modello profondo.
+Every result is compared with a **baseline** (logistic regression on pixels) to measure what the deep model adds.
 
 ## Pipeline
 
 ```
-data (PneumoniaMNIST)  →  model (ResNet18 + testa dropout)  →  training
-                                   │
-        ┌──────────────────────────┼───────────────────────────┐
-   uncertainty (MC-Dropout)   calibration (temp. scaling)   gradcam
-        └──────────────────────────┴───────────────────────────┘
-                                   ▼
-                metrics.json + figure (reliability, gradcam, incertezza)
-                       baseline: regressione logistica
+data  ->  model (ResNet18 + dropout head)  ->  training
+                         |
+   +---------------------+----------------------+
+uncertainty (MC-Dropout)  calibration (temperature)  Grad-CAM
+   +---------------------+----------------------+
+                         v
+     metrics.json + figures (reliability, Grad-CAM, uncertainty)
+              baseline: logistic regression
 ```
 
-## Dataset
+## Brain MRI track: glioma vs non-glioma (Cheng, CC BY 4.0)
 
-**PneumoniaMNIST** (MedMNIST v2): radiografie pediatriche del torace, classi *normal* / *pneumonia*. **Licenza CC BY 4.0**, **download automatico** senza registrazione (pacchetto `medmnist`). Immagini ridimensionate a 64×64 e replicate a 3 canali per il backbone.
+Contrast-enhanced T1w slices from the **Cheng brain tumour dataset** (figshare, CC BY 4.0): 3064 slices from 233 patients. Binary task: glioma vs meningioma/pituitary tumour.
 
-> Yang J. et al., *MedMNIST v2 — A large-scale lightweight benchmark for 2D and 3D biomedical image classification*, Scientific Data 10:41, 2023. DOI: 10.1038/s41597-022-01721-8
+**Split by patient**: train / validation / test = 164 / 23 / 46 patients (62 / 9 / 18 with glioma), stratified, seed 0. No patient appears in more than one split. Slices of the same patient are strongly correlated, so a slice-level split would let the model recognise patients it has already seen.
 
-## Come eseguire (uv)
+```bash
+uv run python scripts/download_tumor.py    # all four figshare parts, ~880 MB, MD5-checked (data not committed)
+uv run python scripts/evaluate_tumor.py    # ResNet18 + XAI + uncertainty -> results/tumor_*
+```
+
+Test set: 613 slices from 46 unseen patients (`results/tumor_metrics.json`).
+
+| | AUROC | F1 | Accuracy |
+|--|:--:|:--:|:--:|
+| **ResNet18 (deep)** | **0.961** | 0.572 | 0.719 |
+| Logistic baseline | 0.881 | 0.774 | 0.791 |
+
+- **Calibration (ECE, lower is better)**: 0.237 -> **0.070** with temperature scaling (T = 7.54).
+- **Uncertainty (MC-Dropout)**: 0.0056 on correct vs 0.0135 on wrong predictions, about 2.4x higher on errors.
+
+**Reading the numbers.** The deep model ranks slices much better than the baseline (AUROC), but at the fixed 0.5 threshold its accuracy and F1 are *below* the baseline, and the raw network is strongly over-confident (the fitted temperature is large). Training runs a fixed 5 epochs without early stopping, and the validation loss rises at the last epoch. A single split with 18 glioma patients in the test set leaves wide uncertainty on every number. Report with references: [`report/brain_tumor_xai.md`](report/brain_tumor_xai.md).
+
+## Chest X-ray track (PneumoniaMNIST, CC BY 4.0)
+
+**PneumoniaMNIST** (MedMNIST v2): paediatric chest X-rays, *normal* / *pneumonia*, downloaded automatically through the `medmnist` package, resized to 64x64 and replicated to 3 channels. The official MedMNIST train/val/test split is used.
 
 ```bash
 uv sync --extra dev
-uv run pytest -q                                  # test rapidi (no download)
-uv run python scripts/download_data.py            # scarica PneumoniaMNIST
-uv run python scripts/train.py --epochs 3         # addestra (salva results/model.pt)
-uv run python scripts/evaluate.py                 # metriche + figure
-uv run streamlit run app/main.py                  # app interattiva
+uv run pytest -q                                  # fast tests (no download)
+uv run python scripts/download_data.py            # PneumoniaMNIST
+uv run python scripts/train.py --epochs 3         # train (saves results/model.pt)
+uv run python scripts/evaluate.py                 # metrics + figures
+uv run streamlit run app/main.py                  # interactive app
 ```
 
-## Risultati
+624 test images, ResNet18 (ImageNet weights), 3 epochs:
 
-Risultati su 624 immagini di test, ResNet18 (pesi ImageNet) addestrato 3 epoche.
-Figure in `results/`; valori rigenerabili con `scripts/evaluate.py`.
-
-| | AUROC ↑ | F1 ↑ | Accuracy ↑ |
+| | AUROC | F1 | Accuracy |
 |--|:--:|:--:|:--:|
 | **ResNet18 (deep)** | **0.963** | 0.858 | 0.793 |
-| Baseline logistica | 0.927 | 0.886 | 0.841 |
+| Logistic baseline | 0.927 | 0.886 | 0.841 |
 
-- **Calibrazione (ECE ↓)**: 0.172 → **0.146** con temperature scaling (T = 1.81).
-- **Incertezza (MC-Dropout)**: media sugli errori **0.0104** vs sulle predizioni corrette **0.0033** → l'incertezza è **~3× più alta dove il modello sbaglia**, utile come flag di triage.
+- **Calibration (ECE)**: 0.172 -> **0.146** (T = 1.81).
+- **Uncertainty**: 0.0033 on correct vs 0.0104 on wrong predictions, about 3.2x higher on errors.
 
-![incertezza](results/uncertainty_vs_correctness.png)
+![uncertainty](results/uncertainty_vs_correctness.png)
 
-> **Lettura onesta dei numeri**: il modello profondo ha **AUROC nettamente superiore** (migliore *ranking*/discriminazione), ma alla soglia fissa 0.5 accuracy/F1 sono vicine — leggermente sotto — alla baseline lineare, perché la soglia non è ottimizzata e le classi sono sbilanciate. Con sole 3 epoche è atteso; il valore distintivo qui è il **segnale di incertezza** e la **calibrazione**, non lo squeezing dell'accuracy.
+Same reading as for the brain track: better ranking (AUROC), but at the fixed 0.5 threshold accuracy and F1 are slightly below the linear baseline (threshold not tuned, imbalanced classes, 3 epochs). The point here is the uncertainty signal and the calibration, not squeezing accuracy.
 
-## Track MRI cerebrale reale (Cheng brain tumor, CC BY 4.0)
+## Limitations
 
-La stessa metodologia (ResNet18 + Grad-CAM + incertezza MC-Dropout + calibrazione)
-è applicata, **senza modifiche al modello**, a MRI cerebrale T1w reale: dataset
-**Cheng** (figshare, CC BY 4.0), task binario **glioma vs non-glioma**.
+- PneumoniaMNIST is low resolution: a reproducible benchmark, not a clinical model.
+- Brain track: 2D slices, one split, short fixed training; the numbers carry wide uncertainty.
+- MC-Dropout estimates *epistemic* uncertainty, not aleatoric noise in the data.
+- Not for clinical use.
 
-```bash
-uv run python scripts/download_tumor.py    # ~204 MB da figshare (dati gitignorati)
-uv run python scripts/evaluate_tumor.py    # ResNet18 + XAI + incertezza → results/tumor_*
-```
+Architecture, data, metrics, intended use, ethics and limitations are in the [**model card**](MODEL_CARD.md).
 
-Numeri reali da `results/tumor_metrics.json` (766 slice, test = 154 held-out):
+## Data and licenses
 
-| | AUROC ↑ | F1 ↑ | Accuracy ↑ |
-|--|:--:|:--:|:--:|
-| **ResNet18 (deep)** | **0.980** | 0.621 | 0.929 |
-| Baseline logistica | 0.859 | 0.571 | 0.961 |
+- PneumoniaMNIST, MedMNIST v2 (Yang J. et al., *Scientific Data* 10:41, 2023, DOI: 10.1038/s41597-022-01721-8), CC BY 4.0. Downloaded at runtime, not included in this repository.
+- Cheng J. et al., brain tumor dataset, figshare, DOI: 10.6084/m9.figshare.1512427, CC BY 4.0. Downloaded by script, not included.
 
-- **Calibrazione**: ECE **0.039 → 0.013** con temperature scaling (T = 1.24).
-- **Incertezza**: **0.0127** (corrette) vs **0.0573** (errate) → **~4.5× più alta sugli errori**.
-
-Stessa lettura onesta del track chest: AUROC nettamente superiore, ma a soglia 0.5
-l'accuracy è leggermente sotto la baseline (classe glioma minoritaria, soglia non
-ottimizzata). Report con citazioni: [`report/brain_tumor_xai.md`](report/brain_tumor_xai.md).
-
-## Note metodologiche e limiti
-
-- PneumoniaMNIST è a bassa risoluzione (immagini standardizzate): utile come benchmark riproducibile, non come modello clinico.
-- MC-Dropout stima l'incertezza *epistemica*, non quella aleatoria del dato.
-- Nessun uso clinico: scopo dimostrativo/educativo.
-
-Dettagli completi su architettura, dati, metriche, uso previsto, considerazioni etiche e limiti nella [**model card**](MODEL_CARD.md).
-
-## Riferimenti
+## References
 
 - Gal Y., Ghahramani Z., *Dropout as a Bayesian Approximation*, ICML 2016. arXiv:1506.02142
 - Guo C. et al., *On Calibration of Modern Neural Networks*, ICML 2017. arXiv:1706.04599
 - Selvaraju R.R. et al., *Grad-CAM*, ICCV 2017. DOI: 10.1109/ICCV.2017.74
 
-## Licenza
+## License
 
-Codice: MIT (vedi `LICENSE`). Dataset PneumoniaMNIST: CC BY 4.0.
+Code: MIT (see `LICENSE`).

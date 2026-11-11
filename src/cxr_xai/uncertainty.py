@@ -1,8 +1,8 @@
-"""Quantificazione dell'incertezza via MC-Dropout.
+"""Uncertainty quantification with MC-Dropout.
 
-Si effettuano T passaggi forward con i layer Dropout attivi: la media delle
-probabilità è la predizione, la deviazione standard tra i campioni stima
-l'incertezza epistemica (del modello).
+T forward passes are run with the Dropout layers active: the mean of the
+probabilities is the prediction, and the standard deviation across samples
+estimates the epistemic (model) uncertainty.
 """
 
 from __future__ import annotations
@@ -21,12 +21,12 @@ def mc_dropout_predict(
     n_samples: int = 20,
     device: torch.device | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Predizione MC-Dropout.
+    """MC-Dropout prediction.
 
-    Ritorna
+    Returns
     -------
-    mean_prob : (N, C) probabilità medie sulle T iterazioni.
-    epistemic : (N,) deviazione standard della prob. della classe positiva.
+    mean_prob : (N, C) probabilities averaged over the T iterations.
+    epistemic : (N,) standard deviation of the positive-class probability.
     """
     device = device or next(model.parameters()).device
     enable_mc_dropout(model)

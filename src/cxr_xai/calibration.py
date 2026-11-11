@@ -1,10 +1,10 @@
-"""Calibrazione della confidenza: temperature scaling + Expected Calibration Error.
+"""Confidence calibration: temperature scaling + Expected Calibration Error.
 
-La temperatura T (scalare) riscala i logit (logit/T) per allineare la confidenza
-predetta all'accuratezza reale. L'ECE misura il disallineamento medio in bin di
-confidenza.
+The scalar temperature T rescales the logits (logit/T) so that the predicted
+confidence matches the observed accuracy. The ECE measures the average mismatch
+over confidence bins.
 
-Riferimento: Guo C. et al., "On Calibration of Modern Neural Networks", ICML 2017.
+Reference: Guo C. et al., "On Calibration of Modern Neural Networks", ICML 2017.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ import torch.nn.functional as F
 
 
 def expected_calibration_error(prob_pos: np.ndarray, y_true: np.ndarray, n_bins: int = 10) -> float:
-    """ECE per classificazione binaria sulla confidenza della classe predetta."""
+    """ECE for binary classification, on the confidence of the predicted class."""
     prob_pos = np.asarray(prob_pos).ravel()
     y_true = np.asarray(y_true).ravel()
     conf = np.where(prob_pos >= 0.5, prob_pos, 1 - prob_pos)
@@ -34,7 +34,7 @@ def expected_calibration_error(prob_pos: np.ndarray, y_true: np.ndarray, n_bins:
 
 
 def fit_temperature(logits: torch.Tensor, labels: torch.Tensor, max_iter: int = 100) -> float:
-    """Stima la temperatura ottimale minimizzando la NLL (LBFGS). Ritorna T > 0."""
+    """Estimate the optimal temperature by minimising the NLL (LBFGS). Returns T > 0."""
     logits = logits.detach()
     labels = labels.detach().long().view(-1)
     log_t = torch.zeros(1, requires_grad=True)  # T = exp(log_t) > 0
@@ -51,7 +51,7 @@ def fit_temperature(logits: torch.Tensor, labels: torch.Tensor, max_iter: int = 
 
 
 def reliability_curve(prob_pos: np.ndarray, y_true: np.ndarray, n_bins: int = 10):
-    """Punti (confidenza media, accuratezza) per il reliability diagram."""
+    """Points (mean confidence, accuracy) for the reliability diagram."""
     prob_pos = np.asarray(prob_pos).ravel()
     y_true = np.asarray(y_true).ravel()
     conf = np.where(prob_pos >= 0.5, prob_pos, 1 - prob_pos)

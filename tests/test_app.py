@@ -1,7 +1,7 @@
-"""Smoke test dell'app Streamlit: il primo render gira senza eccezioni.
+"""Smoke test of the Streamlit app: the first render runs without exceptions.
 
-Senza checkpoint l'app si ferma con un messaggio informativo (nessun download,
-nessun modello caricato): è il percorso che verifichiamo qui.
+Without a checkpoint the app stops with an informational message (no download,
+no model loaded): that is the path tested here.
 """
 
 from pathlib import Path
@@ -14,4 +14,4 @@ APP = Path(__file__).resolve().parents[1] / "app" / "main.py"
 def test_app_initial_render():
     at = AppTest.from_file(str(APP), default_timeout=60).run()
     assert not at.exception
-    assert any("Chest X-ray" in t.value for t in at.title)
+    assert any("medical image classification" in t.value for t in at.title)

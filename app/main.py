@@ -1,10 +1,10 @@
-"""Chest X-ray — classificatore spiegabile con incertezza (app Streamlit).
+"""Chest X-ray: explainable classifier with uncertainty (Streamlit app).
 
-Avvia con:  uv run streamlit run app/main.py
-Richiede un checkpoint addestrato: uv run python scripts/train.py
+Run with:  uv run streamlit run app/main.py
+Requires a trained checkpoint: uv run python scripts/train.py
 
-L'inferenza pesante (download dati + modello) parte solo al click del bottone,
-così il primo render resta leggero.
+The heavy inference (data download + model) starts only when the button is clicked,
+so the first render stays light.
 """
 
 from __future__ import annotations
@@ -17,23 +17,25 @@ import streamlit as st
 RESULTS = Path(__file__).resolve().parents[1] / "results"
 CKPT = RESULTS / "model.pt"
 
-st.set_page_config(page_title="CXR · XAI + Incertezza", layout="wide")
-st.title("🫁 Chest X-ray: classificazione spiegabile con incertezza")
+st.set_page_config(
+    page_title="Explainable, uncertainty-aware medical image classification", layout="wide"
+)
+st.title("Explainable, uncertainty-aware medical image classification")
 st.caption(
-    "Pneumonia vs Normal su PneumoniaMNIST. Mostra confidenza calibrata, "
-    "incertezza MC-Dropout e Grad-CAM. Modello discriminativo (non generativo)."
+    "Chest X-ray, pneumonia vs normal on PneumoniaMNIST. Shows calibrated confidence, "
+    "MC-Dropout uncertainty and Grad-CAM. Discriminative model (not generative)."
 )
 
 with st.sidebar:
-    st.header("Parametri")
-    idx = st.number_input("Indice immagine di test", min_value=0, value=0, step=1)
-    n_mc = st.slider("Campioni MC-Dropout", 5, 50, 20, step=5)
-    unc_thr = st.slider("Soglia 'alta incertezza'", 0.0, 0.3, 0.1, step=0.01)
-    run = st.button("Analizza", type="primary")
+    st.header("Parameters")
+    idx = st.number_input("Test image index", min_value=0, value=0, step=1)
+    n_mc = st.slider("MC-Dropout samples", 5, 50, 20, step=5)
+    unc_thr = st.slider("'High uncertainty' threshold", 0.0, 0.3, 0.1, step=0.01)
+    run = st.button("Analyse", type="primary")
 
 if not CKPT.exists():
     st.info(
-        "Nessun modello addestrato trovato. Esegui prima:\n\n"
+        "No trained model found. Run first:\n\n"
         "```\nuv run python scripts/download_data.py\n"
         "uv run python scripts/train.py --epochs 3\n```"
     )
@@ -76,22 +78,22 @@ if run:
 
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.subheader("Immagine")
+        st.subheader("Image")
         st.image(img, clamp=True, use_container_width=True, caption=f"true: {truth}")
     with c2:
         st.subheader("Grad-CAM")
         overlay = np.stack([img] * 3, axis=-1)
         heat = np.zeros_like(overlay)
-        heat[..., 0] = cam  # canale rosso = attenzione
+        heat[..., 0] = cam  # red channel = attention
         st.image(np.clip(0.6 * overlay + 0.4 * heat, 0, 1), use_container_width=True)
     with c3:
-        st.subheader("Esito")
-        st.metric("Predizione", pred, f"p(pneumonia)={p_pneumonia:.2f}")
-        st.metric("Incertezza epistemica", f"{unc:.3f}")
+        st.subheader("Result")
+        st.metric("Prediction", pred, f"p(pneumonia)={p_pneumonia:.2f}")
+        st.metric("Epistemic uncertainty", f"{unc:.3f}")
         if unc >= unc_thr:
-            st.warning("⚠️ Alta incertezza: predizione poco affidabile.")
+            st.warning("⚠️ High uncertainty: the prediction is not reliable.")
         else:
-            st.success("Incertezza contenuta.")
-        st.caption("Confidenza calibrata con temperature scaling in fase di valutazione.")
+            st.success("Low uncertainty.")
+        st.caption("Confidence calibrated with temperature scaling during evaluation.")
 else:
-    st.info("Imposta l'indice nella sidebar e premi **Analizza**.")
+    st.info("Set the index in the sidebar and press **Analyse**.")

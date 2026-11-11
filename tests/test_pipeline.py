@@ -1,4 +1,4 @@
-"""Test rapidi della pipeline (nessun download, backbone non pre-addestrato)."""
+"""Fast pipeline tests (no download, backbone not pre-trained)."""
 
 import numpy as np
 import torch

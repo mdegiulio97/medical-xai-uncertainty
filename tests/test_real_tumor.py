@@ -1,8 +1,8 @@
-"""Test offline del loader Cheng (nessun download).
+"""Offline tests of the Cheng loader (no download).
 
-Si scrivono alcuni file .mat v7.3 (HDF5) sintetici con struct ``cjdata`` e si
-verifica lettura, etichettatura binaria (glioma vs non-glioma), formato dei
-tensori e split in DataLoader.
+A few synthetic .mat v7.3 (HDF5) files with a ``cjdata`` struct are written, then
+reading, binary labelling (glioma vs non-glioma), tensor format and the
+DataLoader split are checked.
 """
 
 from __future__ import annotations
@@ -12,18 +12,22 @@ import numpy as np
 import torch
 
 from cxr_xai.real_tumor import (
+    group_split_indices,
     image_to_tensor,
     load_tumor_tensors,
     make_loaders,
     read_mat_image,
+    read_mat_pid,
 )
 
 
-def _write_mat(path, image, label):
+def _write_mat(path, image, label, pid="100"):
     with h5py.File(str(path), "w") as f:
         g = f.create_group("cjdata")
         g.create_dataset("image", data=image.astype(np.float32))
         g.create_dataset("label", data=np.array([[float(label)]]))
+        # MATLAB v7.3 stores char arrays as uint16 character codes
+        g.create_dataset("PID", data=np.array([[ord(c)] for c in pid], dtype=np.uint16))
 
 
 def test_read_mat_image(tmp_path):
@@ -45,17 +49,55 @@ def test_load_tumor_tensors_binary_labels(tmp_path):
     rng = np.random.default_rng(0)
     for i, label in enumerate([1, 2, 3, 2], start=1):
         _write_mat(tmp_path / f"{i}.mat", rng.uniform(0, 1000, size=(40, 40)), label)
-    x, y = load_tumor_tensors(tmp_path, img_size=32)
+    x, y, groups = load_tumor_tensors(tmp_path, img_size=32)
     assert x.shape == (4, 3, 32, 32)
-    # glioma = label 2 -> 1; gli altri -> 0
+    assert len(groups) == 4
+    # glioma = label 2 -> 1; all others -> 0
     assert y.tolist() == [0, 1, 0, 1]
 
 
-def test_make_loaders_splits(tmp_path):
-    x = torch.randn(20, 3, 32, 32)
-    y = torch.randint(0, 2, (20,))
-    loaders = make_loaders(x, y, batch_size=4, seed=0)
+def _grouped_data(n_patients=40, slices=3):
+    groups = np.repeat([f"P{i:03d}" for i in range(n_patients)], slices).astype(object)
+    y = np.repeat([i % 2 for i in range(n_patients)], slices)
+    return y, groups
+
+
+def test_make_loaders_splits():
+    y_np, groups = _grouped_data()
+    x = torch.randn(len(y_np), 3, 32, 32)
+    y = torch.tensor(y_np)
+    loaders = make_loaders(x, y, groups, batch_size=4, seed=0)
     total = sum(len(dl.dataset) for dl in loaders.values())
-    assert total == 20
+    assert total == len(y_np)
     assert set(loaders) == {"train", "val", "test"}
     assert len(loaders["train"].dataset) > len(loaders["test"].dataset)
+
+
+def test_read_mat_pid(tmp_path):
+    _write_mat(tmp_path / "1.mat", np.zeros((8, 8)), 2, pid="112233")
+    assert read_mat_pid(tmp_path / "1.mat") == "112233"
+
+
+def test_group_split_no_patient_in_two_splits():
+    y, groups = _grouped_data()
+    idx = group_split_indices(y, groups, seed=0)
+    sets = {k: set(groups[v]) for k, v in idx.items()}
+    assert sets["train"].isdisjoint(sets["val"])
+    assert sets["train"].isdisjoint(sets["test"])
+    assert sets["val"].isdisjoint(sets["test"])
+    assert sorted(np.concatenate(list(idx.values())).tolist()) == list(range(len(y)))
+
+
+def test_group_split_each_split_has_both_classes():
+    y, groups = _grouped_data()
+    idx = group_split_indices(y, groups, seed=0)
+    for name, v in idx.items():
+        assert set(y[v].tolist()) == {0, 1}, name
+
+
+def test_group_split_reproducible():
+    y, groups = _grouped_data()
+    a = group_split_indices(y, groups, seed=3)
+    b = group_split_indices(y, groups, seed=3)
+    for k in a:
+        assert np.array_equal(a[k], b[k])
