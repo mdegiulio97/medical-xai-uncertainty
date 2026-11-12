@@ -1,4 +1,6 @@
-# Explainable, uncertainty-aware medical image classification
+# medical-xai-uncertainty
+
+[![CI](https://github.com/mdegiulio97/medical-xai-uncertainty/actions/workflows/ci.yml/badge.svg)](https://github.com/mdegiulio97/medical-xai-uncertainty/actions/workflows/ci.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 > Classifiers that do more than predict: they report **calibrated confidence**, **epistemic uncertainty** (MC-Dropout) and a **Grad-CAM** explanation. Two tracks with the same method: real brain MRI (Cheng brain tumour, glioma vs non-glioma, split by patient) and paediatric chest X-ray (PneumoniaMNIST). Runs on an entry-level GPU or on CPU.
 
