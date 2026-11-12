@@ -38,11 +38,11 @@ Chest X-ray (`results/metrics.json`, n_test = 624):
 
 | Metric | ResNet-18 (deep) | Logistic baseline |
 |---|:--:|:--:|
-| AUROC | **0.963** | 0.927 |
-| F1 | 0.858 | 0.886 |
-| Accuracy @0.5 | 0.793 | 0.841 |
+| AUROC | **0.962** | 0.927 |
+| F1 | 0.879 | 0.886 |
+| Accuracy @0.5 | 0.829 | 0.841 |
 
-ECE 0.172 -> 0.146 (T = 1.81); mean uncertainty 0.0033 (correct) vs 0.0104 (wrong).
+ECE 0.135 -> 0.121 (T = 1.39); mean uncertainty 0.0030 (correct) vs 0.0134 (wrong).
 
 Brain MRI (`results/tumor_metrics.json`, n_test = 613 slices from 41 unseen patients, 13 with glioma):
 
