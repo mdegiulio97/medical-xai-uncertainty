@@ -1,18 +1,18 @@
 {
   "deep_model": {
-    "auroc": 0.9628205128205127,
-    "f1": 0.858085808580858,
-    "accuracy": 0.7932692307692307
+    "auroc": 0.9615165461319307,
+    "f1": 0.8790960451977401,
+    "accuracy": 0.8285256410256411
   },
   "logistic_baseline": {
     "auroc": 0.92686828840675,
     "f1": 0.8855491329479769,
     "accuracy": 0.8413461538461539
   },
-  "ece_uncalibrated": 0.1723,
-  "ece_temperature_scaled": 0.146,
-  "temperature": 1.812,
-  "mean_uncertainty_correct": 0.0033,
-  "mean_uncertainty_wrong": 0.0104,
+  "ece_uncalibrated": 0.1349,
+  "ece_temperature_scaled": 0.1211,
+  "temperature": 1.388,
+  "mean_uncertainty_correct": 0.003,
+  "mean_uncertainty_wrong": 0.0134,
   "n_test": 624
 }

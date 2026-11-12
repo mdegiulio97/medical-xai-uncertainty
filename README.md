@@ -67,11 +67,11 @@ uv run streamlit run app/main.py                  # interactive app
 
 | | AUROC | F1 | Accuracy |
 |--|:--:|:--:|:--:|
-| **ResNet18 (deep)** | **0.963** | 0.858 | 0.793 |
+| **ResNet18 (deep)** | **0.962** | 0.879 | 0.829 |
 | Logistic baseline | 0.927 | 0.886 | 0.841 |
 
-- **Calibration (ECE)**: 0.172 -> **0.146** (T = 1.81).
-- **Uncertainty**: 0.0033 on correct vs 0.0104 on wrong predictions, about 3.2x higher on errors.
+- **Calibration (ECE)**: 0.135 -> **0.121** (T = 1.39).
+- **Uncertainty**: 0.0030 on correct vs 0.0134 on wrong predictions, about 4.5x higher on errors.
 
 ![uncertainty](results/uncertainty_vs_correctness.png)
 
